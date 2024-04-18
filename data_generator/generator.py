@@ -3,8 +3,8 @@ from matplotlib.animation import FuncAnimation
 import functions as f  # Make sure this module is correctly imported
 
 # Parameters and discretization of space and time
-a, b, T0, T, Nt, cfl = -10, 10, 0, 5, 100, 1
-x, Uo, dx, dt, labda, Nx = f.initialize_simulation(a, b, T0, T, Nt, cfl)
+a, b, T0, T, Nx, cfl = -10, 10, 0, 5, 100, 1
+x, Uo, dx, dt, labda, Nx = f.initialize_simulation(a, b, T0, T,Nx, cfl)
 time = 0
 
 a_func = lambda x: 1
@@ -33,10 +33,16 @@ def animate(n):
     Uo = Un
     
     line.set_ydata(Uo)  # Update line data
+
+    a_max = max(abs(f.flux_burgers_prime(Uo)))
+
+    dt =  (dx * cfl)/a_max
+    dt = min(dt,(T-time))
+    
     time += dt 
     print(time)
     if time >= T:  # Condition to stop animation
         ani.event_source.stop()
 
-ani = FuncAnimation(fig, animate, frames=Nt, interval=25, repeat=False)  # Interval between frames in milliseconds
+ani = FuncAnimation(fig, animate, interval=25, repeat=False)  # Interval between frames in milliseconds
 plt.show()

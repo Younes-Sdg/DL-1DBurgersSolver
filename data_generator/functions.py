@@ -55,13 +55,16 @@ def upwind_backward_flux(u, v):
     return flux(u)
 
 # Function to initialize parameters and create spatial grid
-def initialize_simulation(a, b, T0, T, Nt, cfl):
-    dt = (T - T0) / Nt
-    dx = dt / cfl
-    Nx = int((b - a) / dx)
+def initialize_simulation(a, b, T0, T,Nx, cfl):
+    dx = (b-a)/Nx ## dx fixe, d
+
+
     x = np.linspace(a, b, Nx + 1)
     U0 = np.array([initial_condition(xi) for xi in x])
+    a_max = max(abs(flux_burgers_prime(U0)))
+    dt = (dx * cfl)/a_max
     lmbda = dt / dx
+    ## maximum de valeur absolue de f'(u) 
     
     return x, U0, dx, dt, lmbda, Nx
 
