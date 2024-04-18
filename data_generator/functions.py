@@ -19,8 +19,8 @@ def initial_condition(x):
     else:
         return 0
 
-def flux(a,u):
-    return a(u)
+def flux(u,a=None):
+    return u
 
 
 

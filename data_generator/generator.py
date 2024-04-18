@@ -7,6 +7,9 @@ a, b, T0, T, Nt, cfl = -10, 10, 0, 5, 100, 1
 x, Uo, dx, dt, labda, Nx = f.initialize_simulation(a, b, T0, T, Nt, cfl)
 time = 0
 
+a_func = lambda x: 1
+
+
 # Figure and axis for animation
 fig, ax = plt.subplots(figsize=(10, 6))
 line, = ax.plot(x, Uo, 'r-')  # Initialize a red line
@@ -20,8 +23,8 @@ def animate(n):
     global Uo, time, ani, T  
     
     # Update Uo for the next time step
-    g1 = f.numerical_method("murman_roe", Uo[1:-1], Uo[2:], labda,f.flux_burgers)
-    g2 = f.numerical_method("murman_roe", Uo[:-2], Uo[1:-1], labda,f.flux_burgers)
+    g1 = f.numerical_method("murman_roe", Uo[1:-1], Uo[2:], labda,f.flux,a_func)
+    g2 = f.numerical_method("murman_roe", Uo[:-2], Uo[1:-1], labda,f.flux,a_func)
     Un = Uo.copy()
     Un[1:-1] = Uo[1:-1] - labda * (g1 - g2)
     Un[0] = Un[1]  # Handle boundary conditions
