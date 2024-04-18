@@ -35,7 +35,7 @@ y_train_tensor = torch.tensor(y_train, dtype=torch.float32).view(-1, 1)
 input_size = 1
 hidden_size = 32
 output_size = 1
-learning_rate = 0.1
+learning_rate = 0.07
 num_epochs = 1000
 
 # Initialize the model, loss function, and optimizer
