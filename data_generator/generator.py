@@ -3,11 +3,11 @@ from matplotlib.animation import FuncAnimation
 import functions as f  # Make sure this module is correctly imported
 
 # Parameters and discretization of space and time
-a, b, T0, T, Nx, cfl = -10, 10, 0, 5, 100, 1
+a, b, T0, T, Nx, cfl = -10, 10, 0, 5, 100, 0.05
 x, Uo, dx, dt, labda, Nx = f.initialize_simulation(a, b, T0, T,Nx, cfl)
 time = 0
 
-a_func = lambda x: 1
+a_func = lambda x: x
 
 
 # Figure and axis for animation

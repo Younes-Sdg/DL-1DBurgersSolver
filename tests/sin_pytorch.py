@@ -38,7 +38,7 @@ class FunctionApproximator(nn.Module):
 input_size = 1
 hidden_size = 32
 output_size = 2  # Two outputs: u(x) and u'(x)
-learning_rate = 0.07
+learning_rate = 0.1
 num_epochs = 1000
 
 # Initialize the model, loss function, and optimizer
