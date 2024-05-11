@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
-import explicite_modif as data
+import functions as data
 
 # Implemented numerical methods:
 # -> lax_Friedrichs
