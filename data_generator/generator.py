@@ -1,48 +1,40 @@
+import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
-import functions as f  # Make sure this module is correctly imported
+import explicite_modif as data
 
-# Parameters and discretization of space and time
-a, b, T0, T, Nx, cfl = -10, 10, 0, 5, 100, 0.05
-x, Uo, dx, dt, labda, Nx = f.initialize_simulation(a, b, T0, T,Nx, cfl)
-time = 0
+# Implemented numerical methods:
+# -> lax_Friedrichs
+# -> lax_Wendroff
+# -> Murman_Roe
+# -> Engquist_osher
 
-a_func = lambda x: x
+# Parameters and space-time discretization
+a, b, T0, T, Nx, cfl = -10, 10, 0, 5, 100, 0.5
+x, Uo, dx = data.initialize_data(a, b, Nx)
 
-
-# Figure and axis for animation
+# Set up the figure and axis for animation
 fig, ax = plt.subplots(figsize=(10, 6))
-line, = ax.plot(x, Uo, 'r-')  # Initialize a red line
+line, = ax.plot(x, Uo, 'r-')  # Initialize a red line representing the initial condition
 ax.set_xlim(a, b)
-ax.set_ylim(min(Uo), max(Uo) * 1.1)
+ax.set_ylim(-0.3,1.1)
 ax.set_title("Burgers' Equation")
 ax.set_xlabel('X')
 ax.set_ylabel('U')
 
+time = T0
+
 def animate(n):
-    global Uo, time, ani, T  
-    
-    # Update Uo for the next time step
-    g1 = f.numerical_method("murman_roe", Uo[1:-1], Uo[2:], labda,f.flux,a_func)
-    g2 = f.numerical_method("murman_roe", Uo[:-2], Uo[1:-1], labda,f.flux,a_func)
-    Un = Uo.copy()
-    Un[1:-1] = Uo[1:-1] - labda * (g1 - g2)
-    Un[0] = Un[1]  # Handle boundary conditions
-    Un[-1] = Un[Nx-1]
-    
-    Uo = Un
-    
-    line.set_ydata(Uo)  # Update line data
-
-    a_max = max(abs(f.flux_burgers_prime(Uo)))
-
-    dt =  (dx * cfl)/a_max
-    dt = min(dt,(T-time))
-    
-    time += dt 
+    global Uo, time
+    dt, lambda_value = data.compute_dt_lambda(cfl, dx, Uo, time)
+    time += dt
+    Uo = data.update_solution(Uo, lambda_value, "Engquist_Oshe")
+    line.set_ydata(Uo)  # Update the plot data with the new solution
     print(time)
-    if time >= T:  # Condition to stop animation
+    if time >= T:  # Condition to stop the animation when reaching the final time T
         ani.event_source.stop()
 
-ani = FuncAnimation(fig, animate, interval=25, repeat=False)  # Interval between frames in milliseconds
+# Create and start the animation
+ani = FuncAnimation(fig, animate, frames=None, interval=100, repeat=False)  # Set the interval between frames in milliseconds
 plt.show()
+

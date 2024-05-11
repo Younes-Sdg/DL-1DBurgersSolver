@@ -1,79 +1,256 @@
 import numpy as np
-
-# Function describing the velocity: v = a(u, x, t) (general form)
-def velocity(v, x, t):
-    return v(x, t)
-
-# Function describing the initial condition: u = u0(x)
-def initial_condition_Creno(x):
-    if 0.1 <= x <= 0.2:
-        return 10
-    else:
-        return 0
-
 def initial_condition(x):
-    if -10 <= x < -6:
-        return 2
-    elif -6 <= x < -1:
-        return 2
+    
+    """
+    Defines the initial condition of the solution based on the position x.
+
+    Parameters:
+        x (float): The spatial coordinate.
+
+    Returns:
+        float: The initial value of the solution at position x.
+    """
+    
+    if  (x >= -10) and (x < -6):
+        value = -0.2
+    elif (x >= -6) and (x < -1):
+        value = 1
     else:
-        return 0
+        value = 0.4
+    return value
 
-def flux(u,a=None):
+def flux(u):
+    
+    """
+    Computes the flux for the given value of u.
+
+    Parameters:
+        u (float): Value of the solution.
+
+    Returns:
+        float: Computed flux value.
+    """
+    
+    return (u**2) / 2
+
+def flux_derivative(u):
+    
+    """
+    Computes the derivative of the flux function.
+
+    Parameters:
+        u (float): Value of the solution.
+
+    Returns:
+        float: Derivative of the flux at u.
+    """
+    
     return u
 
+def lax_friedrichs_flux(u, v, lambda_value):
+    
+    """
+    Computes the numerical flux using the Lax-Friedrichs method.
 
+    Parameters:
+        u (float): Value of the solution at the current grid point.
+        v (float): Value of the solution at the adjacent grid point.
+        lambda_value (float): Lambda value derived from CFL condition.
 
-def flux_burgers(u,a=None): #added a for convenience regarding the following code
-    return (u ** 2) / 2
+    Returns:
+        float: Numerical flux computed between two points.
+    """
+    
+    return 0.5 * (flux(u) + flux(v) - 0.5*(1 / lambda_value) * (v - u))
 
-def flux_burgers_prime(u):
-    return u
+def lax_wendroff_flux(u, v, lambda_value):
+    
+    """
+    Computes the numerical flux using the Lax-Wendroff method.
 
-# Functions describing the numerical fluxes for each of the schemes
-def lax_friedrichs_flux(u, v, labda, flux_function, a=None):
-    return (1 / 2) * (flux_function(u, a) + flux_function(v, a) - 0.5 * (1 / labda) * (v - u))
+    Parameters:
+        u (float): Value of the solution at the current grid point.
+        v (float): Value of the solution at the adjacent grid point.
+        lambda_value (float): Lambda value derived from CFL condition.
 
-def lax_wendroff_flux(u, v, labda, flux_function, a=None):
-    return (1 / 2) * (flux_function(u, a) + flux_function(v, a) - ((u + v) / 2) * (labda) * (flux_function(v, a) - flux_function(u, a)))
+    Returns:
+        float: Numerical flux computed between two points.
+    """
+    
+    return 0.5 * (flux(u) + flux(v) - 0.5 * (u + v) * lambda_value * (flux(v) - flux(u)))
 
-def murman_roe_flux(u, v, flux_function, a=None):
+def murman_roe_flux(u, v):
+    
+    """
+    Computes the numerical flux using the Murman-Roe method.
+
+    Parameters:
+        u (np.array): Values of the solution at the current grid points.
+        v (np.array): Values of the solution at the adjacent grid points.
+
+    Returns:
+        np.array: Numerical flux computed between arrays of points.
+    """
+    
     u = np.array(u)
     v = np.array(v)
-    flux_vectorized = np.vectorize(lambda u: flux_function(u, a))  # Ensure flux can be vectorized
+    vectorized_flux = np.vectorize(flux)
+    flux_difference = np.where(u != v, (vectorized_flux(v) - vectorized_flux(u)) / (u - v), flux_derivative(u))
+    return 0.5 * (vectorized_flux(u) + vectorized_flux(v) + (u - v) * np.abs(flux_difference))
 
-    flux_diff = np.where(u != v, (flux_vectorized(v) - flux_vectorized(u)) / (u - v), u)
-    return 0.5 * (flux_vectorized(u) + flux_vectorized(v) + (u - v) * np.abs(flux_diff))
+def engquist_osher_flux(u, v):
+    """
+    Computes the Engquist-Osher numerical flux.
 
-def center_flux(u, v):
-    return (1 / 2) * (flux(u) + flux(v))
+    Parameters:
+        u (np.array or float): Value of the solution at the current grid point.
+        v (np.array or float): Value of the solution at the adjacent grid point.
 
-def upwind_forward_flux(u, v):
+    Returns:
+        float or np.array: Engquist-Osher numerical flux between u and v.
+    """
+    # Calculate the flux for scalar inputs or arrays
+    u, v = np.asarray(u), np.asarray(v)
+    
+    # Check if u and v are arrays and calculate the integral if they are not equal
+    if np.array_equal(u, v):
+        integral_part = 0
+    else:
+        # Use numerical integration to compute the integral of |a(ξ)| from u to v
+        integral_part = np.zeros_like(u)
+        for idx in range(len(u)):
+            u_val, v_val = u[idx], v[idx]
+            integral_part[idx] = np.trapz(np.abs(flux_derivative(np.linspace(u_val, v_val, num=100))), np.linspace(u_val, v_val, num=100))
+    
+    return 0.5 * (flux(u) + flux(v) - integral_part)
+
+def central_flux(u, v):
+    
+    """
+    Computes the central difference flux approximation.
+
+    Parameters:
+    u (float): Value of the solution at the current grid point.
+    v (float): Value of the solution at the adjacent grid point.
+
+    Returns:
+    float: Average of flux at two points.
+    """
+    
+    return 0.5 * (flux(u) + flux(v))
+
+def forward_flux(u, v):
+    """
+    Computes the forward difference flux approximation.
+
+    Parameters:
+        u (float): Value of the solution at the current grid point.
+        v (float): Value of the solution at the adjacent grid point.
+
+    Returns:
+        float: Flux at the adjacent point.
+    """
     return flux(v)
 
-def upwind_backward_flux(u, v):
+def backward_flux(u, v):
+    """
+    Computes the backward difference flux approximation.
+
+    Parameters:
+        u (float): Value of the solution at the current grid point.
+        v (float): Value of the solution at the adjacent grid point.
+
+    Returns:
+        float: Flux at the current point.
+    """
     return flux(u)
 
-# Function to initialize parameters and create spatial grid
-def initialize_simulation(a, b, T0, T,Nx, cfl):
-    dx = (b-a)/Nx ## dx fixe, d
+def numerical_method(choice, u, v, lambda_value):
+    """
+    Selects the numerical method to compute flux based on the given choice.
 
+    Parameters:
+        choice (str): Name of the method to use ('lax_Friedrichs', 'lax_Wendroff', 'Murman_Roe').
+        u (float): Value of the solution at the current grid point.
+        v (float): Value of the solution at the adjacent grid point.
+        lambda_value (float): Lambda value derived from CFL condition.
 
-    x = np.linspace(a, b, Nx + 1)
-    U0 = np.array([initial_condition(xi) for xi in x])
-    a_max = max(abs(flux_burgers_prime(U0)))
-    dt = (dx * cfl)/a_max
-    lmbda = dt / dx
-    ## maximum de valeur absolue de f'(u) 
-    
-    return x, U0, dx, dt, lmbda, Nx
-
-def numerical_method(method, u, v, labda,flux_function,a=None):
-    if method == "lax_friedrichs":
-        return lax_friedrichs_flux(u, v, labda,flux_function,a=None)
-    elif method == "lax_wendroff":
-        return lax_wendroff_flux(u, v, labda,flux_function,a=None)
-    elif method == "murman_roe":
-        return murman_roe_flux(u, v,flux_function,a=None)
+    Returns:
+        float: Result of the numerical flux function.
+    """
+    if choice == "lax_Friedrichs":
+        return lax_friedrichs_flux(u, v, lambda_value)
+    elif choice == "lax_Wendroff":
+        return lax_wendroff_flux(u, v, lambda_value)
+    elif choice == "Murman_Roe":
+        return murman_roe_flux(u, v)
+    elif choice == "Engquist_Oshe":
+        return engquist_osher_flux (u,v)
     else:
-        raise ValueError(f"Invalid method choice '{method}'. Valid options are 'lax_friedrichs', 'lax_wendroff', 'murman_roe'.")
+        raise ValueError(f"Invalid method choice '{choice}'. Valid options are 'lax_Friedrichs', 'lax_Wendroff', 'Murman_Roe', 'Engquist_Oshe'.")
+
+def initialize_data(a, b, Nx):
+    """
+    Initializes the spatial grid and the initial condition.
+
+    Parameters:
+        a (float): Start of the spatial domain.
+        b (float): End of the spatial domain.
+        Nx (int): Number of grid points.
+
+    Returns:
+        tuple: Tuple containing the grid points x (np.array), initial condition values Uo (np.array), and grid spacing dx (float).
+    """
+    dx = abs((b-a)/Nx)
+    x = np.linspace(a, b, Nx + 1)
+    Uo = np.zeros(len(x))
+    for i in range(len(x)):
+        Uo[i] = initial_condition(x[i])
+    return x, Uo, dx
+
+def compute_dt_lambda(cfl, dx, Uo, time):
+    """
+    Computes the time step and lambda value based on the CFL condition and the maximum value of Uo.
+
+    Parameters:
+        cfl (float): CFL number.
+        dx (float): Spatial grid spacing.
+        Uo (np.array): Current solution array.
+        time (float): Current simulation time.
+
+    Returns:
+        tuple: Tuple containing the time step dt (float) and lambda value (float).
+    """
+    dt = cfl * dx / max(abs(Uo))
+    dt = min(dt, 5 - time)
+    lambda_value = dt / dx
+    return dt, lambda_value
+
+
+def update_solution(Uo, lambda_value, method_choice):
+    """
+    Update the solution array for the next time step using the specified numerical method.
+
+    Parameters:
+        Uo (np.array): The current solution array.
+        lambda_value (float): The CFL condition scaled lambda value.
+        method_choice (str): The numerical method to be used for flux calculation.
+
+    Returns:
+        np.array: The updated solution array.
+    """
+    # Compute the numerical fluxes using the chosen method
+    g1 = numerical_method(method_choice, Uo[1:-1], Uo[2:], lambda_value)
+    g2 = numerical_method(method_choice, Uo[:-2], Uo[1:-1], lambda_value)
+    
+    # Copy the current solution to prepare for updating
+    Un = Uo.copy()
+    
+    # Update the internal points using the flux differences
+    Un[1:-1] = Uo[1:-1] - lambda_value * (g1 - g2)
+    
+    # Apply boundary conditions
+    Un[0] = Un[1]  # Using the second point as the boundary condition
+    Un[-1] = Un[-2]  # Using the penultimate point as the boundary condition
+    
+    return Un
