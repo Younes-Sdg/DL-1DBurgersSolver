@@ -1,40 +1,38 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
-import functions as data
-
-# Implemented numerical methods:
-# -> lax_Friedrichs
-# -> lax_Wendroff
-# -> Murman_Roe
-# -> Engquist_osher
+import functions as f
 
 # Parameters and space-time discretization
 a, b, T0, T, Nx, cfl = -10, 10, 0, 5, 100, 0.5
-x, Uo, dx = data.initialize_data(a, b, Nx)
+x, Uo, dx = f.initialize_data(a, b, Nx)
+time = T0
+
+# Initialize data storage
+data = []
 
 # Set up the figure and axis for animation
 fig, ax = plt.subplots(figsize=(10, 6))
-line, = ax.plot(x, Uo, 'r-')  # Initialize a red line representing the initial condition
+line, = ax.plot(x, Uo, 'r-')
 ax.set_xlim(a, b)
-ax.set_ylim(-0.3,1.1)
-ax.set_title("Burgers' Equation")
+ax.set_ylim(-0.3, 1.1)
+ax.set_title("Burgers' Equation Simulation")
 ax.set_xlabel('X')
 ax.set_ylabel('U')
 
-time = T0
+def animate(frame):
+    global Uo, time, data
+    Uo, dt, time = f.update_solution(Uo, dx, cfl, "Engquist_Osher", time, T)
+    line.set_ydata(Uo)
 
-def animate(n):
-    global Uo, time
-    dt, lambda_value = data.compute_dt_lambda(cfl, dx, Uo, time)
-    time += dt
-    Uo = data.update_solution(Uo, lambda_value, "Engquist_Oshe")
-    line.set_ydata(Uo)  # Update the plot data with the new solution
-    print(time)
-    if time >= T:  # Condition to stop the animation when reaching the final time T
+    # Append current data to the list
+    for xi, u in zip(x, Uo):
+        data.append([time, xi, u])
+
+    if time >= T:
         ani.event_source.stop()
+        # Save the data to a CSV file once the animation is complete
+        np.savetxt("simulation_data.csv", np.array(data), delimiter=",", header="time,x,u", comments='')
 
-# Create and start the animation
-ani = FuncAnimation(fig, animate, frames=None, interval=100, repeat=False)  # Set the interval between frames in milliseconds
+ani = FuncAnimation(fig, animate, frames=None, interval=100, repeat=False, cache_frame_data=False)
 plt.show()
-
