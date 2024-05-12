@@ -1,79 +1,57 @@
 import numpy as np
 
-# Function describing the velocity: v = a(u, x, t) (general form)
-def velocity(v, x, t):
-    return v(x, t)
-
-# Function describing the initial condition: u = u0(x)
-def initial_condition_Creno(x):
-    if 0.1 <= x <= 0.2:
-        return 10
-    else:
-        return 0
-
 def initial_condition(x):
+    """Defines the initial condition based on position x."""
     if -10 <= x < -6:
-        return 2
+        return -0.2
     elif -6 <= x < -1:
-        return 2
-    else:
-        return 0
+        return 1
+    return 0.4
 
-def flux(u,a=None):
-    return u
-
-
-
-def flux_burgers(u,a=None): #added a for convenience regarding the following code
+def flux(u):
+    """Computes the flux for the Burgers' equation."""
     return (u ** 2) / 2
 
-def flux_burgers_prime(u):
+def flux_derivative(u):
+    """Derivative of the flux function for numerical flux calculations."""
     return u
 
-# Functions describing the numerical fluxes for each of the schemes
-def lax_friedrichs_flux(u, v, labda, flux_function, a=None):
-    return (1 / 2) * (flux_function(u, a) + flux_function(v, a) - 0.5 * (1 / labda) * (v - u))
-
-def lax_wendroff_flux(u, v, labda, flux_function, a=None):
-    return (1 / 2) * (flux_function(u, a) + flux_function(v, a) - ((u + v) / 2) * (labda) * (flux_function(v, a) - flux_function(u, a)))
-
-def murman_roe_flux(u, v, flux_function, a=None):
-    u = np.array(u)
-    v = np.array(v)
-    flux_vectorized = np.vectorize(lambda u: flux_function(u, a))  # Ensure flux can be vectorized
-
-    flux_diff = np.where(u != v, (flux_vectorized(v) - flux_vectorized(u)) / (u - v), u)
-    return 0.5 * (flux_vectorized(u) + flux_vectorized(v) + (u - v) * np.abs(flux_diff))
-
-def center_flux(u, v):
-    return (1 / 2) * (flux(u) + flux(v))
-
-def upwind_forward_flux(u, v):
-    return flux(v)
-
-def upwind_backward_flux(u, v):
-    return flux(u)
-
-# Function to initialize parameters and create spatial grid
-def initialize_simulation(a, b, T0, T,Nx, cfl):
-    dx = (b-a)/Nx ## dx fixe, d
-
-
-    x = np.linspace(a, b, Nx + 1)
-    U0 = np.array([initial_condition(xi) for xi in x])
-    a_max = max(abs(flux_burgers_prime(U0)))
-    dt = (dx * cfl)/a_max
-    lmbda = dt / dx
-    ## maximum de valeur absolue de f'(u) 
-    
-    return x, U0, dx, dt, lmbda, Nx
-
-def numerical_method(method, u, v, labda,flux_function,a=None):
-    if method == "lax_friedrichs":
-        return lax_friedrichs_flux(u, v, labda,flux_function,a=None)
-    elif method == "lax_wendroff":
-        return lax_wendroff_flux(u, v, labda,flux_function,a=None)
-    elif method == "murman_roe":
-        return murman_roe_flux(u, v,flux_function,a=None)
+def numerical_flux(u, v, method, lambda_value):
+    """Generalized function to calculate numerical flux based on the method."""
+    if method == 'lax_Friedrichs':
+        return 0.5 * (flux(u) + flux(v) - (v - u) / (2 * lambda_value))
+    elif method == 'lax_Wendroff':
+        return 0.5 * (flux(u) + flux(v) - 0.5 * (u + v) * lambda_value * (flux(v) - flux(u)))
+    elif method == 'Murman_Roe':
+        vectorized_flux = np.vectorize(flux)
+        flux_difference = np.where(u != v, (vectorized_flux(v) - vectorized_flux(u)) / (v - u), flux_derivative(u))
+        return 0.5 * (vectorized_flux(u) + vectorized_flux(v) + (u - v) * np.abs(flux_difference))
+    elif method == 'Engquist_Osher':
+        integral_part = np.trapz(np.abs(flux_derivative(np.linspace(u, v, num=100))), np.linspace(u, v, num=100))
+        return 0.5 * (flux(u) + flux(v) - integral_part)
     else:
-        raise ValueError(f"Invalid method choice '{method}'. Valid options are 'lax_friedrichs', 'lax_wendroff', 'murman_roe'.")
+        raise ValueError("Invalid numerical flux method")
+
+def initialize_data(a, b, Nx):
+    """Initializes the spatial grid and initial condition."""
+    x = np.linspace(a, b, Nx + 1)
+    Uo = np.array([initial_condition(xi) for xi in x])
+    dx = (b - a) / Nx
+    return x, Uo, dx
+
+def update_solution(Uo, dx, cfl, method, time, T):
+    """Update the solution array using the specified numerical method and apply Dirichlet boundary conditions."""
+    dt = cfl * dx / max(abs(Uo))
+    dt = min(dt, T - time)  # Ensure we do not go beyond the final time
+    lambda_value = dt / dx
+
+    # Apply the chosen numerical flux method
+    Uo_new = Uo.copy()
+    for i in range(1, len(Uo) - 1):
+        Uo_new[i] = Uo[i] - lambda_value * (numerical_flux(Uo[i], Uo[i + 1], method, lambda_value) - numerical_flux(Uo[i - 1], Uo[i], method, lambda_value))
+
+    # Apply Dirichlet boundary conditions explicitly
+    Uo_new[0], Uo_new[-1] = 0, 0  # Set the boundary values directly
+
+    return Uo_new, dt, time + dt
+
