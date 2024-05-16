@@ -3,7 +3,7 @@ import numpy as np
 def initial_condition(x):
     """Defines the initial condition based on position x."""
     if -10 <= x < -6:
-        return -0.2
+        return 0.2
     elif -6 <= x < -1:
         return 1
     return 0.4
@@ -39,7 +39,13 @@ def initialize_data(a, b, Nx):
     dx = (b - a) / Nx
     return x, Uo, dx
 
-def update_solution(Uo, dx, cfl, method, time, T):
+def apply_Dirichlet(Uo_new, left_value=0.2, right_value=0.4):
+    """Apply Dirichlet boundary conditions explicitly."""
+    Uo_new[0] = left_value
+    Uo_new[-1] = right_value
+    return Uo_new
+
+def update_solution(Uo, dx, cfl, method, time, T,left_dirichlet=0.2,right_dirichlet=0.4):
     """Update the solution array using the specified numerical method and apply Dirichlet boundary conditions."""
     dt = cfl * dx / max(abs(Uo))
     dt = min(dt, T - time)  # Ensure we do not go beyond the final time
@@ -50,8 +56,7 @@ def update_solution(Uo, dx, cfl, method, time, T):
     for i in range(1, len(Uo) - 1):
         Uo_new[i] = Uo[i] - lambda_value * (numerical_flux(Uo[i], Uo[i + 1], method, lambda_value) - numerical_flux(Uo[i - 1], Uo[i], method, lambda_value))
 
-    # Apply Dirichlet boundary conditions explicitly
-    Uo_new[0], Uo_new[-1] = 0, 0  # Set the boundary values directly
+    # Apply Dirichlet boundary conditions
+    Uo_new = apply_Dirichlet(Uo_new,left_dirichlet,right_dirichlet)
 
     return Uo_new, dt, time + dt
-

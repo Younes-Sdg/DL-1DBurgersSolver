@@ -1,37 +1,29 @@
+import sys
+import os
+
 import torch
 import torch.nn as nn
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import pandas as pd
-import functions
+from tqdm import tqdm
 
-class DGMNet(nn.Module):
-    def __init__(self):
-        super(DGMNet, self).__init__()
-        self.fc1 = nn.Linear(2, 50)  # First hidden layer with 50 neurons
-        self.fc2 = nn.Linear(50, 50) # Second hidden layer with 50 neurons
-        self.fc3 = nn.Linear(50, 50) # Additional hidden layer
-        self.fc4 = nn.Linear(50, 50) # Additional hidden layer
-        self.fc5 = nn.Linear(50, 1)  # Output layer
-        self.activation = nn.Tanh()  # Using Tanh activation function
+from data_generator import functions
+from models.dgmnet import DGMNet
 
-    def forward(self, x_t):
-        x = self.activation(self.fc1(x_t))
-        x = self.activation(self.fc2(x))
-        x = self.activation(self.fc3(x))
-        x = self.activation(self.fc4(x))
-        return self.fc5(x)
 
-model = DGMNet()
-optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+# Initialize the model
+model = DGMNet(input_dim=2, hidden_dim=50, layers=3)
+optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1000, gamma=0.5)
 
 def train_model(model, epochs, domain, time_frame):
     model.train()
-    for epoch in range(epochs):
+    for epoch in tqdm(range(epochs), desc="Training Epochs"):
         x = torch.rand(1000, 1) * (domain[1] - domain[0]) + domain[0]
         t = torch.rand(1000, 1) * (time_frame[1] - time_frame[0]) + time_frame[0]
-        
+
         x.requires_grad_(True)
         t.requires_grad_(True)
 
@@ -44,20 +36,36 @@ def train_model(model, epochs, domain, time_frame):
         u_t = torch.autograd.grad(u_pred, t, grad_outputs=grad_outputs, create_graph=True)[0]
         u_x = torch.autograd.grad(u_pred, x, grad_outputs=grad_outputs, create_graph=True)[0]
 
-        f = u_t + u_pred * u_x  # Keeping the complex loss function
+        # Calculate residuals
+        f = u_t + u_pred * u_x
 
+        # Initial condition
         ic = torch.tensor([functions.initial_condition(xi.item()) for xi in x], dtype=torch.float32)
-        loss = (f ** 2).mean() + ((u_pred.squeeze() - ic) ** 2).mean()
-        loss += ((model(torch.cat((torch.full_like(x, domain[0]), t), 1)).squeeze(1) ** 2).mean() + 
-                 (model(torch.cat((torch.full_like(x, domain[1]), t), 1)).squeeze(1) ** 2).mean())  # Dirichlet BCs
+        loss_ic = ((u_pred.squeeze() - ic) ** 2).mean()
+
+        # Boundary conditions
+        x_boundary_left = torch.full((1000, 1), domain[0])
+        x_boundary_right = torch.full((1000, 1), domain[1])
+        t_boundary = torch.rand(1000, 1) * (time_frame[1] - time_frame[0]) + time_frame[0]
+        u_boundary_left = model(torch.cat((x_boundary_left, t_boundary), dim=1)).squeeze()
+        u_boundary_right = model(torch.cat((x_boundary_right, t_boundary), dim=1)).squeeze()
+        
+        # Updated boundary conditions to -0.2 and 0.4
+        loss_bc = ((u_boundary_left - 0.2) ** 2).mean() + ((u_boundary_right - 0.4) ** 2).mean()
+
+        # Combine losses
+        loss_pde = (f ** 2).mean()
+        loss = loss_pde + loss_ic + loss_bc
 
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         optimizer.step()
+        scheduler.step()
 
         if epoch % 100 == 0:
-            print(f'Epoch {epoch}: Loss {loss.item()}')
+            tqdm.write(f'Epoch {epoch}: Loss {loss.item()}')
 
-train_model(model, 5000, [-10, 10], [0, 5])  # Training for 5000 epochs
+train_model(model, 1500, [-10, 10], [0, 5])
 
 data = pd.read_csv('simulation_data.csv')
 x_numerical = data['x'].unique()
