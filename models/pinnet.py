@@ -23,10 +23,9 @@ class PINN(nn.Module):
         # Compute gradients for enforcing PDE constraints
         u_t = autograd.grad(u_pred, t, grad_outputs=torch.ones_like(u_pred), create_graph=True)[0]
         u_x = autograd.grad(u_pred, x, grad_outputs=torch.ones_like(u_pred), create_graph=True)[0]
-        u_xx = autograd.grad(u_x, x, grad_outputs=torch.ones_like(u_x), create_graph=True)[0]
         
-        # Burgers' equation residual
-        residual = u_t + u_pred * u_x - (0.01 / torch.pi) * u_xx
+        # Burgers' equation residual without viscosity term
+        residual = u_t + u_pred * u_x
         
         # Loss is a combination of the data loss and the PDE residual loss
         loss = nn.MSELoss()(u_pred, u) + torch.mean(residual ** 2)

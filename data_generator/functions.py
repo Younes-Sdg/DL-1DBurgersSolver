@@ -4,8 +4,7 @@ def initial_condition(x):
     """Defines the initial condition based on position x."""
     if -10 <= x < -6:
         return 0.2
-    elif -6 <= x < -1:
-        return 1
+    
     return 0.4
 
 def flux(u):

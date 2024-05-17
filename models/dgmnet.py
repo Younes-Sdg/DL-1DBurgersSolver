@@ -1,7 +1,7 @@
 import torch.nn as nn
 
 class DGMNet(nn.Module):
-    def __init__(self, input_dim=2, hidden_dim=50, layers=3):
+    def __init__(self, input_dim=2, hidden_dim=100, layers=4):
         super(DGMNet, self).__init__()
         self.input_layer = nn.Linear(input_dim, hidden_dim)
         self.hidden_layers = nn.ModuleList([nn.Linear(hidden_dim, hidden_dim) for _ in range(layers)])
