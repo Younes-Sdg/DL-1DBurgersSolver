@@ -48,7 +48,7 @@ def apply_Dirichlet(Uo_new, left_value=0.2, right_value=0.4):
 def update_solution(Uo, dx, cfl, method, time, T,left_dirichlet=0.2,right_dirichlet=0.4):
     """Update the solution array using the specified numerical method and apply Dirichlet boundary conditions."""
     dt = cfl * dx / max(abs(Uo))
-    dt = min(dt, T - time)  # Ensure we do not go beyond the final time
+    dt = min(dt, T - time) 
     lambda_value = dt / dx
 
     # Apply the chosen numerical flux method
