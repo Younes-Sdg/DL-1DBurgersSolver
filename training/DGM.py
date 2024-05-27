@@ -54,7 +54,7 @@ def train_model(model, epochs, domain, time_frame):
         u_boundary_left = model(torch.cat((x_boundary_left, t_boundary), dim=1)).squeeze()
         u_boundary_right = model(torch.cat((x_boundary_right, t_boundary), dim=1)).squeeze()
 
-        # Updated boundary conditions to -0.2 and 0.4
+        # Updated boundary conditions to 0.2 and 0.4
         loss_bc = ((u_boundary_left - 0.2) ** 2).mean() + ((u_boundary_right - 0.4) ** 2).mean()
 
         # Combine losses
