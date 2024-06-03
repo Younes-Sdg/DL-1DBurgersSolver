@@ -4,55 +4,67 @@ import torch
 import torch.nn as nn
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
+from matplotlib.animation import FuncAnimation, FFMpegWriter
 import pandas as pd
 from tqdm import tqdm
-
 from data_generator import functions
 from models.pinnet import PINN
 
-# Check for GPU availability
+# Setup the device for training (GPU or CPU)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Training will use: {device}")
 
-
-model = PINN(input_dim=2, hidden_dim=50, layers=6).to(device)
+# Initialize the PINN model
+model = PINN(input_dim=2, hidden_dim=50, layers=8).to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1000, gamma=0.5)
 
 def train_model(model, epochs, domain, time_frame):
+    """
+    Inner function to train the model.
+
+    Args:
+    model (nn.Module): The neural network model to train.
+    epochs (int): Number of training epochs.
+    domain (list): Spatial domain as [min, max].
+    time_frame (list): Time frame as [start, end].
+
+    Returns:
+    float: The loss from the last training epoch.
+    """
     model.train()
+    best_loss = float('inf')
     for epoch in tqdm(range(epochs), desc="Training Epochs"):
         x = torch.rand(1000, 1) * (domain[1] - domain[0]) + domain[0]
-        t = torch.rand(1000, 1) * (time_frame[1] - time_frame[0]) + time_frame[0]
-
+        t = torch.linspace(time_frame[0], time_frame[1], 1000).unsqueeze(1)
         u0 = torch.tensor([functions.initial_condition(xi.item()) for xi in x], dtype=torch.float32).unsqueeze(1)
 
         x.requires_grad_(True)
         t.requires_grad_(True)
 
-        x_t_u0 = torch.cat((x, t, u0), dim=1).to(device)
-
         optimizer.zero_grad()
         loss = model.loss(x, t, u0)
-
         loss.backward()
         optimizer.step()
         scheduler.step()
+            
+    return loss.item()
 
-        if epoch % 100 == 0:
-            tqdm.write(f'Epoch {epoch}: Loss {loss.item()}')
-
-epochs = 1500
+# Parameters for training
+epochs = 1000
 space_domain = [-10, 10]
-time_domain = [0,5]
+time_domain = [0, 5]
 
-train_model(model, epochs, space_domain , time_domain )
+# Training the model
+loss = train_model(model, epochs, space_domain, time_domain)
+print(f'Final training loss = {loss}')
 
+# Load data for animation
 data = pd.read_csv('simulation_data.csv')
 x_numerical = data['x'].unique()
 time_steps = data['time'].unique()
 
+# Set up the plotting for animation
 fig, ax = plt.subplots(figsize=(10, 6))
 line1, = ax.plot(x_numerical, np.zeros_like(x_numerical), 'r-', label='Numerical Solution')
 line2, = ax.plot(x_numerical, np.zeros_like(x_numerical), 'b--', label='PINN Solution')
@@ -63,7 +75,10 @@ ax.set_xlabel('X')
 ax.set_ylabel('U')
 ax.legend()
 
+mse_list = []
+
 def animate(i):
+    """ Update function for animation """
     t = time_steps[i]
     u_numerical = data[data['time'] == t]['u'].values
     
@@ -75,7 +90,19 @@ def animate(i):
 
     line1.set_ydata(u_numerical)
     line2.set_ydata(u_pinn.flatten())
+    mse = np.mean((u_numerical - u_pinn.flatten())**2)
+    mse_list.append(mse)
+    
     return line1, line2,
 
+# Run the animation
 ani = FuncAnimation(fig, animate, frames=len(time_steps), interval=50, blit=True, repeat=False)
 plt.show()
+
+# Calculate the maximum MSE after the animation
+mse_max = max(mse_list) if mse_list else None
+
+# Save the animation
+writer = FFMpegWriter(fps=20, metadata=dict(artist='Me'), bitrate=1800)
+ani.save(f'animation_pinns.mp4', writer=writer)
+
