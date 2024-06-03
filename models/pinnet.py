@@ -8,7 +8,7 @@ class PINN(nn.Module):
         self.input_layer = nn.Linear(input_dim, hidden_dim)
         self.hidden_layers = nn.ModuleList([nn.Linear(hidden_dim, hidden_dim) for _ in range(layers)])
         self.output_layer = nn.Linear(hidden_dim, 1)
-        self.activation = nn.Tanh()
+        self.activation = nn.ReLU ()
 
     def forward(self, x):
         x = self.activation(self.input_layer(x))
@@ -26,7 +26,9 @@ class PINN(nn.Module):
         
         # Burgers' equation residual without viscosity term
         residual = u_t + u_pred * u_x
-        
+        t_zero_mask = (t == 0).squeeze()
+        u_pred_t0 = u_pred[t_zero_mask]
+        u_t0 = u[t_zero_mask]
         # Loss is a combination of the data loss and the PDE residual loss
-        loss = nn.MSELoss()(u_pred, u) + torch.mean(residual ** 2)
+        loss = nn.MSELoss()(u_pred_t0, u_t0) + torch.mean(residual ** 2)
         return loss
