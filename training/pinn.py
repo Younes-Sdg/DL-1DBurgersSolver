@@ -9,6 +9,7 @@ import pandas as pd
 from tqdm import tqdm
 from data_generator import functions
 from models.pinnet import PINN
+from models.pinnet import train_model,setup_animation
 
 # Setup the device for training (GPU or CPU)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -16,39 +17,6 @@ print(f"Training will use: {device}")
 
 # Initialize the PINN model
 model = PINN(input_dim=2, hidden_dim=50, layers=8).to(device)
-optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1000, gamma=0.5)
-
-def train_model(model, epochs, domain, time_frame):
-    """
-    Inner function to train the model.
-
-    Args:
-    model (nn.Module): The neural network model to train.
-    epochs (int): Number of training epochs.
-    domain (list): Spatial domain as [min, max].
-    time_frame (list): Time frame as [start, end].
-
-    Returns:
-    float: The loss from the last training epoch.
-    """
-    model.train()
-    best_loss = float('inf')
-    for epoch in tqdm(range(epochs), desc="Training Epochs"):
-        x = torch.rand(1000, 1) * (domain[1] - domain[0]) + domain[0]
-        t = torch.linspace(time_frame[0], time_frame[1], 1000).unsqueeze(1)
-        u0 = torch.tensor([functions.initial_condition(xi.item()) for xi in x], dtype=torch.float32).unsqueeze(1)
-
-        x.requires_grad_(True)
-        t.requires_grad_(True)
-
-        optimizer.zero_grad()
-        loss = model.loss(x, t, u0)
-        loss.backward()
-        optimizer.step()
-        scheduler.step()
-            
-    return loss.item()
 
 # Parameters for training
 epochs = 1000
@@ -65,15 +33,7 @@ x_numerical = data['x'].unique()
 time_steps = data['time'].unique()
 
 # Set up the plotting for animation
-fig, ax = plt.subplots(figsize=(10, 6))
-line1, = ax.plot(x_numerical, np.zeros_like(x_numerical), 'r-', label='Numerical Solution')
-line2, = ax.plot(x_numerical, np.zeros_like(x_numerical), 'b--', label='PINN Solution')
-ax.set_xlim(-10, 10)
-ax.set_ylim(-0.3, 1.1)
-ax.set_title("Burgers' Equation Solutions")
-ax.set_xlabel('X')
-ax.set_ylabel('U')
-ax.legend()
+fig, ax, line1, line2 = setup_animation(data, x_numerical, time_steps)
 
 mse_list = []
 
@@ -106,3 +66,6 @@ mse_max = max(mse_list) if mse_list else None
 writer = FFMpegWriter(fps=20, metadata=dict(artist='Me'), bitrate=1800)
 ani.save(f'animation_pinns.mp4', writer=writer)
 
+output_file = 'training/animation_pinns.mp4'
+ani.save(output_file, writer=writer)
+print(f"Animation saved as {output_file}")
