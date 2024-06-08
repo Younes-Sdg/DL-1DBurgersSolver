@@ -1,0 +1,10 @@
+Training Time (minutes): 25.51
+Epochs: 15000
+Learning Rate: 0.001
+Weight Decay: 0.0001
+Step Size: 1000
+Gamma: 0.5
+Input Dimension: 2
+Hidden Dimension: 50
+Number of Layers: 8
+Best Loss: 0.000241
