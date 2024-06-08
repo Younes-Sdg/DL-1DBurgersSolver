@@ -7,35 +7,30 @@ from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation, PillowWriter
 from models.dgmnet import DGMNet
 from data_generator import functions
+import os
 
 # Setup device for training
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Training will use: {device}")
 
 # Initialize the model
-model = DGMNet(input_dim=2, hidden_dim=50, layers=3).to(device)
+model = DGMNet(input_dim=2, hidden_dim=50, layers=8).to(device)
 optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
 scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1000, gamma=0.5)
 
-# Training function
 def train_model(model, epochs, domain, time_frame, num_points):
     model.train()
+    
     for epoch in tqdm(range(epochs), desc="Training Epochs"):
         x = torch.rand(num_points, 1) * (domain[1] - domain[0]) + domain[0]
-        t = torch.rand(num_points, 1) * (time_frame[1] - time_frame[0]) + time_frame[0]
-        x_t = torch.cat((x, t), dim=1).requires_grad_(True).to(device)
+        t = torch.linspace(time_frame[0], time_frame[1], 1000).unsqueeze(1)
         ic = torch.tensor([functions.initial_condition(xi.item()) for xi in x], dtype=torch.float32).unsqueeze(1).to(device)
 
-        # Prepare boundary conditions
-        x_left = torch.full((num_points, 1), domain[0], device=device)
-        x_right = torch.full((num_points, 1), domain[1], device=device)
-        t_bc = torch.rand(num_points, 1) * (time_frame[1] - time_frame[0]) + time_frame[0]
-        t_bc = t_bc.to(device)
-        x_left_t = torch.cat((x_left, t_bc), dim=1).requires_grad_(True)
-        x_right_t = torch.cat((x_right, t_bc), dim=1).requires_grad_(True)
+        x.requires_grad_(True)
+        t.requires_grad_(True)
 
         optimizer.zero_grad()
-        loss = model.loss(x_t, ic, (x_left_t, x_right_t))
+        loss = model.loss(x, t, ic)
         loss.backward()
         optimizer.step()
         scheduler.step()
@@ -44,7 +39,7 @@ def train_model(model, epochs, domain, time_frame, num_points):
             print(f'Epoch {epoch}: Loss {loss.item()}')
 
 # Training parameters
-epochs = 1500
+epochs = 5000   
 space_domain = [-10, 10]
 time_domain = [0, 5]
 num_points = 1000
@@ -82,10 +77,10 @@ def animate(i):
     line2.set_ydata(u_dgm.flatten())
     return line1, line2,
 
-ani = FuncAnimation(fig, animate, frames=len(time_steps), interval=50, blit=True, repeat=False)
+ani = FuncAnimation(fig, animate, frames=len(time_steps), interval=50, blit=True)
 
 # Save the animation
-output_path = 'animations/dgm_animation.gif'
+output_path = os.path.join('animations', 'pinn_animation.gif')
 ani.save(output_path, writer='pillow', fps=10)
 print("Animation saved to:", output_path)
 
