@@ -51,7 +51,7 @@ def train_model(model, epochs, domain, time_frame):
     return loss.item()
 
 # Parameters for training
-epochs = 1000
+epochs = 5000
 space_domain = [-10, 10]
 time_domain = [0, 5]
 
@@ -97,12 +97,10 @@ def animate(i):
 
 # Run the animation
 ani = FuncAnimation(fig, animate, frames=len(time_steps), interval=50, blit=True, repeat=False)
+
+# Save the animation as a GIF
+output_path = os.path.join('animations', 'pinn_animation.gif')
+ani.save(output_path, writer='pillow', fps=10)
+print("Animation saved to:", output_path)
+
 plt.show()
-
-# Calculate the maximum MSE after the animation
-mse_max = max(mse_list) if mse_list else None
-
-# Save the animation
-writer = FFMpegWriter(fps=20, metadata=dict(artist='Me'), bitrate=1800)
-ani.save(f'animation_pinns.mp4', writer=writer)
-

@@ -1,86 +1,63 @@
-import sys
-import os
 import torch
-import torch.nn as nn
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
-import pandas as pd
+import torch.optim as optim
 from tqdm import tqdm
-
-from data_generator import functions
+import numpy as np
+import pandas as pd
+from matplotlib import pyplot as plt
+from matplotlib.animation import FuncAnimation, PillowWriter
 from models.dgmnet import DGMNet
+from data_generator import functions
 
-# Check for GPU availability
+# Setup device for training
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Training will use: {device}")
 
-
+# Initialize the model
 model = DGMNet(input_dim=2, hidden_dim=50, layers=3).to(device)
-optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1000, gamma=0.5)
+optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
+scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1000, gamma=0.5)
 
-def train_model(model, epochs, domain, time_frame):
+# Training function
+def train_model(model, epochs, domain, time_frame, num_points):
     model.train()
     for epoch in tqdm(range(epochs), desc="Training Epochs"):
-        x = torch.rand(1000, 1) * (domain[1] - domain[0]) + domain[0]
-        t = torch.rand(1000, 1) * (time_frame[1] - time_frame[0]) + time_frame[0]
+        x = torch.rand(num_points, 1) * (domain[1] - domain[0]) + domain[0]
+        t = torch.rand(num_points, 1) * (time_frame[1] - time_frame[0]) + time_frame[0]
+        x_t = torch.cat((x, t), dim=1).requires_grad_(True).to(device)
+        ic = torch.tensor([functions.initial_condition(xi.item()) for xi in x], dtype=torch.float32).unsqueeze(1).to(device)
 
-        u0 = torch.tensor([functions.initial_condition(xi.item()) for xi in x], dtype=torch.float32).unsqueeze(1)
-
-        x.requires_grad_(True)
-        t.requires_grad_(True)
-
-        x_t = torch.cat((x, t), dim=1).to(device)
+        # Prepare boundary conditions
+        x_left = torch.full((num_points, 1), domain[0], device=device)
+        x_right = torch.full((num_points, 1), domain[1], device=device)
+        t_bc = torch.rand(num_points, 1) * (time_frame[1] - time_frame[0]) + time_frame[0]
+        t_bc = t_bc.to(device)
+        x_left_t = torch.cat((x_left, t_bc), dim=1).requires_grad_(True)
+        x_right_t = torch.cat((x_right, t_bc), dim=1).requires_grad_(True)
 
         optimizer.zero_grad()
-        u_pred = model(x_t)
-
-        grad_outputs = torch.ones_like(u_pred)
-        u_t = torch.autograd.grad(u_pred, t, grad_outputs=grad_outputs, create_graph=True)[0]
-        u_x = torch.autograd.grad(u_pred, x, grad_outputs=grad_outputs, create_graph=True)[0]
-
-        # Calculate residuals
-        f = u_t + u_pred * u_x
-
-        # Initial condition
-        ic = torch.tensor([functions.initial_condition(xi.item()) for xi in x], dtype=torch.float32).to(device)
-        loss_ic = ((u_pred.squeeze() - ic) ** 2).mean()
-
-        # Boundary conditions
-        x_boundary_left = torch.full((1000, 1), domain[0]).to(device)
-        x_boundary_right = torch.full((1000, 1), domain[1]).to(device)
-        t_boundary = (torch.rand(1000, 1) * (time_frame[1] - time_frame[0]) + time_frame[0]).to(device)
-        u_boundary_left = model(torch.cat((x_boundary_left, t_boundary), dim=1)).squeeze()
-        u_boundary_right = model(torch.cat((x_boundary_right, t_boundary), dim=1)).squeeze()
-
-        # Updated boundary conditions to 0.2 and 0.4
-        loss_bc = ((u_boundary_left - 0.2) ** 2).mean() + ((u_boundary_right - 0.4) ** 2).mean()
-
-        # Combine losses
-        loss_pde = (f ** 2).mean()
-        loss = loss_pde + loss_ic + loss_bc
-
+        loss = model.loss(x_t, ic, (x_left_t, x_right_t))
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         optimizer.step()
         scheduler.step()
 
         if epoch % 100 == 0:
-            tqdm.write(f'Epoch {epoch}: Loss {loss.item()}')
+            print(f'Epoch {epoch}: Loss {loss.item()}')
 
-
-
+# Training parameters
 epochs = 1500
 space_domain = [-10, 10]
-time_domain = [0,5]
+time_domain = [0, 5]
+num_points = 1000
 
-train_model(model, epochs, space_domain , time_domain )
+# Start training
+train_model(model, epochs, space_domain, time_domain, num_points)
 
+# Load data for visualization
 data = pd.read_csv('simulation_data.csv')
 x_numerical = data['x'].unique()
 time_steps = data['time'].unique()
 
+# Setup for animation
 fig, ax = plt.subplots(figsize=(10, 6))
 line1, = ax.plot(x_numerical, np.zeros_like(x_numerical), 'r-', label='Numerical Solution')
 line2, = ax.plot(x_numerical, np.zeros_like(x_numerical), 'b--', label='DGM Solution')
@@ -94,7 +71,7 @@ ax.legend()
 def animate(i):
     t = time_steps[i]
     u_numerical = data[data['time'] == t]['u'].values
-    
+
     t_tensor = torch.full((len(x_numerical), 1), t, dtype=torch.float32).to(device)
     x_tensor = torch.Tensor(x_numerical).unsqueeze(1).to(device)
     x_t = torch.cat((x_tensor, t_tensor), 1).to(device)
@@ -106,4 +83,10 @@ def animate(i):
     return line1, line2,
 
 ani = FuncAnimation(fig, animate, frames=len(time_steps), interval=50, blit=True, repeat=False)
+
+# Save the animation
+output_path = 'animations/dgm_animation.gif'
+ani.save(output_path, writer='pillow', fps=10)
+print("Animation saved to:", output_path)
+
 plt.show()
