@@ -1,3 +1,5 @@
+import sys
+import os
 import torch
 import torch.nn as nn
 import numpy as np
@@ -5,9 +7,7 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import pandas as pd
 from tqdm import tqdm
-
-from models.simple_nn import SimpleNN  # Ensure this import points to where your SimpleNN class is located
-
+from models.simple_nn import SimpleNN  
 # Check for GPU availability
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Training will use: {device}")
@@ -27,12 +27,18 @@ u_real = torch.tensor(data['u'].values, dtype=torch.float32).unsqueeze(1).to(dev
 inputs = torch.cat((x_real, t_real), dim=1)
 
 # Training loop
-def train_model(model, epochs, inputs, u_real):
+def train_model(model, epochs, inputs, u_real, num_points):
     model.train()
+    total_points = inputs.size(0)
     for epoch in tqdm(range(epochs), desc="Training Epochs"):
+        # Randomly select a subset of points
+        indices = torch.randperm(total_points)[:num_points]
+        inputs_subset = inputs[indices]
+        u_real_subset = u_real[indices]
+        
         optimizer.zero_grad()
-        u_pred = model(inputs)
-        loss = criterion(u_pred, u_real)
+        u_pred = model(inputs_subset)
+        loss = criterion(u_pred, u_real_subset)
         loss.backward()
         optimizer.step()
 
@@ -40,7 +46,8 @@ def train_model(model, epochs, inputs, u_real):
             tqdm.write(f'Epoch {epoch}: Loss {loss.item()}')
 
 epochs = 1500
-train_model(model, epochs, inputs, u_real)
+num_points = 100  # Number of points to randomly sample for each epoch
+train_model(model, epochs, inputs, u_real, num_points)
 
 # Visualization
 x_numerical = data['x'].unique()
@@ -72,3 +79,11 @@ def animate(i):
 
 ani = FuncAnimation(fig, animate, frames=len(time_steps), interval=50, blit=True, repeat=False)
 plt.show()
+
+
+# Save the animation as a GIF
+output_path = os.path.join('animations', 'simple_NN_animation.gif')
+ani.save(output_path, writer='pillow', fps=10)
+print("Animation saved to:", output_path)
+
+
