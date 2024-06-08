@@ -21,25 +21,35 @@ class DGMNet(nn.Module):
         output = self.output_layer(S)
         return output
 
-    def loss(self, x_t, ic, boundary_conditions):
+    def loss(self, x, t, ic):
+        x_t = torch.cat([x, t], dim=1)
         u_pred = self.forward(x_t)
-        grads = autograd.grad(outputs=u_pred, inputs=x_t,
-                              grad_outputs=torch.ones_like(u_pred),
-                              create_graph=True, only_inputs=True)
-        u_t, u_x = grads[0][:, 1], grads[0][:, 0]
+        
+        # Compute gradients for enforcing PDE constraints
+        grad_outputs = torch.ones_like(u_pred, requires_grad=False)
+        u_t = autograd.grad(u_pred, t, grad_outputs=grad_outputs, create_graph=True)[0]
+        u_x = autograd.grad(u_pred, x, grad_outputs=grad_outputs, create_graph=True)[0]
 
-        # Residual of the PDE
-        residual = u_t + u_pred * u_x
+        # Burgers' equation residual without viscosity
+        residual = u_t + (u_pred * u_x)
         loss_pde = torch.mean(residual ** 2)
 
-        # Initial condition loss
-        loss_ic = torch.mean((u_pred - ic) ** 2)
+        # Initial condition loss at t=0
+        t_zero_mask = (t == 0).squeeze()
+        loss_ic = nn.MSELoss()(u_pred[t_zero_mask], ic[t_zero_mask])
 
-        # Boundary conditions
-        bc_left = boundary_conditions[0]
-        bc_right = boundary_conditions[1]
-        u_bc_left = self.forward(bc_left)
-        u_bc_right = self.forward(bc_right)
-        loss_bc = torch.mean((u_bc_left - 0.2) ** 2) + torch.mean((u_bc_right - 0.4) ** 2)
-
-        return loss_pde + loss_ic + loss_bc
+        # Boundary conditions handled directly
+        x_left = torch.full_like(x, -10)  # left boundary at x = -10
+        x_right = torch.full_like(x, 10)  # right boundary at x = 10
+        t_bc = t  # using the same timesteps for boundary conditions
+        x_left_t = torch.cat((x_left, t_bc), dim=1)
+        x_right_t = torch.cat((x_right, t_bc), dim=1)
+        
+        u_bc_left = self.forward(x_left_t)
+        u_bc_right = self.forward(x_right_t)
+        loss_bc_left = nn.MSELoss()(u_bc_left, torch.full_like(u_bc_left, 0.2))
+        loss_bc_right = nn.MSELoss()(u_bc_right, torch.full_like(u_bc_right, 0.4))
+        
+        # Total loss
+        loss = loss_pde + loss_ic + loss_bc_left + loss_bc_right
+        return loss
