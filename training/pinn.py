@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation, FFMpegWriter
 import pandas as pd
 from tqdm import tqdm
-from data_generator import functions
 from models.pinnet import PINN
 import time
 
@@ -20,38 +19,46 @@ model = PINN(input_dim=2, hidden_dim=50, layers=8).to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1000, gamma=0.5)
 
-def train_model(model, epochs, domain, time_frame):
-    """
-    Inner function to train the model.
-    """
+# Load real solution data
+data = pd.read_csv('simulation_data.csv')
+x_real = torch.tensor(data['x'].values, dtype=torch.float32).unsqueeze(1).to(device)
+t_real = torch.tensor(data['time'].values, dtype=torch.float32).unsqueeze(1).to(device)
+u_real = torch.tensor(data['u'].values, dtype=torch.float32).unsqueeze(1).to(device)
+
+# Combine x and t into a single input tensor
+inputs = torch.cat((x_real, t_real), dim=1)
+
+# Training loop
+def train_model(model, epochs, inputs, u_real, num_points, alpha, beta):
     model.train()
     best_loss = float('inf')
     best_model_state = None
-    start_time = time.time()
 
+    total_points = inputs.size(0)
     for epoch in tqdm(range(epochs), desc="Training Epochs"):
-        x = torch.rand(1000, 1) * (domain[1] - domain[0]) + domain[0]
-        t = torch.linspace(time_frame[0], time_frame[1], 1000).unsqueeze(1)
-        u0 = torch.tensor([functions.initial_condition(xi.item()) for xi in x], dtype=torch.float32).unsqueeze(1).to(device)
+        # Randomly select a subset of points
+        indices = torch.randperm(total_points)[:num_points]
+        inputs_subset = inputs[indices]
+        u_real_subset = u_real[indices]
+        
+        x = inputs_subset[:, 0].unsqueeze(1).to(device)
+        t = inputs_subset[:, 1].unsqueeze(1).to(device)
 
         x.requires_grad_(True)
         t.requires_grad_(True)
 
         optimizer.zero_grad()
-        loss = model.loss(x, t, u0)
+        loss = model.loss(x, t, u_real_subset, alpha, beta)
         loss.backward()
         optimizer.step()
         scheduler.step()
 
         if epoch % 100 == 0:
-            print(f'Epoch {epoch}: Loss {loss.item()}')
+            tqdm.write(f'Epoch {epoch}: Loss {loss.item()}')
 
         if loss.item() < best_loss:
             best_loss = loss.item()
             best_model_state = model.state_dict()
-
-    end_time = time.time()
-    training_time_minutes = (end_time - start_time) / 60
 
     if not os.path.exists('trained_models'):
         os.makedirs('trained_models')
@@ -60,25 +67,28 @@ def train_model(model, epochs, domain, time_frame):
     # Save the best model parameters and training details
     params_path = 'trained_models/pinns_best_parameters.txt'
     with open(params_path, 'w') as f:
-        f.write(f"Training Time (minutes): {training_time_minutes:.2f}\n")
         f.write(f"Epochs: {epochs}\n")
         f.write(f"Learning Rate: {0.001}\n")
         f.write(f"Weight Decay: {1e-4}\n")
         f.write(f"Step Size: {1000}\n")
+        f.write(f"Alpha: {alpha}\n")
+        f.write(f"Alpha: {beta}\n")
         f.write(f"Best Loss: {best_loss:.6f}\n")
-
-    return training_time_minutes  # Return the training time to use in the plot title
+        
 
 # Parameters for training
-epochs = 15000
-space_domain = [-10, 10]
-time_domain = [0, 5]
+epochs = 6000
+num_points = 100 # Number of points to randomly sample for each epoch
+alpha = 0.3
+beta = 0.7
 
-# Training the model
-training_time_minutes = train_model(model, epochs, space_domain, time_domain)
+# Calculate the training time
+start_time = time.time()
+train_model(model, epochs, inputs, u_real, num_points, alpha, beta)
+end_time = time.time()
+training_time_minutes = (end_time - start_time) / 60
 
 # Load data for animation
-data = pd.read_csv('simulation_data.csv')
 x_numerical = data['x'].unique()
 time_steps = data['time'].unique()
 
