@@ -77,7 +77,7 @@ def train_model(model, epochs, inputs, u_real, num_points, alpha, beta):
         
 
 # Parameters for training
-epochs = 6000
+epochs = 15000
 num_points = 100 # Number of points to randomly sample for each epoch
 alpha = 0.3
 beta = 0.7

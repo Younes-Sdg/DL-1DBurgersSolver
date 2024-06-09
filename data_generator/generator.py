@@ -16,7 +16,7 @@ fig, ax = plt.subplots(figsize=(10, 6))
 line, = ax.plot(x, Uo, 'r-')
 ax.set_xlim(a, b)
 ax.set_ylim(-0.3, 1.1)
-ax.set_title("Burgers' Equation Simulation")
+ax.set_title("Equation de Burgers")
 ax.set_xlabel('X')
 ax.set_ylabel('U')
 
