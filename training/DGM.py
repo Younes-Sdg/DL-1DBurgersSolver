@@ -70,7 +70,7 @@ torch.save(best_model_state, 'trained_models/dgm_best.pth')
 # Create a text file to save hyperparameters and the best loss
 params_path = 'trained_models/dgm_best_parameters.txt'
 with open(params_path, 'w') as f:
-    f.write(f"Training Time (minutes): {training_time_minutes:.2f}\n")
+    
     f.write(f"Epochs: {epochs}\n")
     f.write(f"Learning Rate: {0.001}\n")
     f.write(f"Weight Decay: {1e-4}\n")
@@ -80,6 +80,7 @@ with open(params_path, 'w') as f:
     f.write(f"Hidden Dimension: {50}\n")
     f.write(f"Number of Layers: {8}\n")
     f.write(f"Best Loss: {min_loss:.6f}\n")
+    f.write(f"Training Time (minutes): {training_time_minutes:.2f}\n")
 
 
 

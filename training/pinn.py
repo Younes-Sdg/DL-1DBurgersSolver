@@ -71,6 +71,8 @@ def train_model(model, epochs, inputs, u_real, num_points, alpha, beta):
         f.write(f"Learning Rate: {0.001}\n")
         f.write(f"Weight Decay: {1e-4}\n")
         f.write(f"Step Size: {1000}\n")
+        f.write(f"Input Dimension: {2}\n")
+        f.write(f"Hidden Dimension: {50}\n")
         f.write(f"Alpha: {alpha}\n")
         f.write(f"Alpha: {beta}\n")
         f.write(f"Best Loss: {best_loss:.6f}\n")
