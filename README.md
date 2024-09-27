@@ -5,6 +5,7 @@ This repository contains code for solving the 1D Burgers' equation using both me
 ## References
 
 "DGM: A deep learning algorithm for solving partial differential equations" : https://arxiv.org/pdf/1708.07469
+
 "AN EXPERT’S GUIDE TO TRAINING PHYSICS-INFORMED NEURAL NETWORKS" : https://arxiv.org/pdf/2308.08468
 
 
